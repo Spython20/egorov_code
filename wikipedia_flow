@@ -1,0 +1,33 @@
+import numpy as np
+
+# V(q) = 1-cos(q)
+def q_dot_dot(q):
+    return -np.sin(q)
+
+def flow_wiki(q0, p0, dt, n_steps):
+    q_previous = np.asarray(q0, dtype=float).copy()
+    p0 = np.asarray(p0, dtype=float)
+
+    # Phi^0
+    yield 0.0, q_previous.copy()
+
+    # q_1 = q_0 + dt p_0 + 1/2 dt^2 A(q_0)
+    q_current = (
+        q_previous
+        + dt * p0
+        + 0.5 * dt**2 * q_dot_dot(q_previous)
+    )
+
+    yield dt, q_current.copy()
+
+    # q_{n+1} = 2q_n - q_{n-1} + dt^2 A(q_n)
+    for n in range(1, n_steps):
+        q_next = (
+            2.0 * q_current
+            - q_previous
+            + dt**2 * q_dot_dot(q_current)
+        )
+
+        q_previous, q_current = q_current, q_next
+
+        yield (n + 1) * dt, q_current.copy()
