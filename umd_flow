@@ -1,0 +1,24 @@
+import numpy as np
+
+# V(q) = 1 - cos(q)
+def grad_V(q):
+    return np.sin(q)
+
+def flow_half_steps(q0, p0, dt, n_steps):
+    q = np.asarray(q0, dtype=float).copy()
+    p = np.asarray(p0, dtype=float).copy()
+
+    # Phi^0
+    yield 0.0, q.copy(), p.copy()
+
+    for n in range(n_steps):
+        # p_{n+1/2} = p_n - (dt/2) grad V(q_n)
+        p_half = p - 0.5 * dt * grad_V(q)
+
+        # q_{n+1} = q_n + dt p_{n+1/2}
+        q = q + dt * p_half
+
+        # p_{n+1} = p_{n+1/2} - (dt/2) grad V(q_{n+1})
+        p = p_half - 0.5 * dt * grad_V(q)
+
+        yield (n + 1) * dt, q.copy(), p.copy()
