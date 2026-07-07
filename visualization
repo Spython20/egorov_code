@@ -1,0 +1,324 @@
+import numpy as np
+import scipy as s
+import matplotlib.pyplot as plt
+
+from wikipedia_flow import flow_wiki
+from umd_flow import flow_half_steps
+
+epsilon = 0.001
+d = 1
+d1 = 2.0
+
+D1 = np.diag([d1])
+
+D2 = s.linalg.block_diag(D1, np.reciprocal(D1))
+
+def g_wavepacket(q, q0, p0):
+    difference = q - q0
+
+    exponential_term = (
+        -(d1 / (2.0 * epsilon)) * difference**2
+        + (1j / epsilon) * p0 * difference
+    )
+
+    return (
+        (np.pi * epsilon) ** (-d / 4)
+        * np.linalg.det(D1) ** (1 / 4)
+        * np.exp(exponential_term)
+    )
+
+
+def wigner(q, p, q0, p0):
+    z = np.array([q, p], dtype=float)
+    center = np.array([q0, p0], dtype=float)
+
+    difference = z - center
+
+    exponential_term = (
+        -1.0 / epsilon
+    ) * difference @ D2 @ difference
+
+    return (
+        (np.pi * epsilon) ** (-d)
+        * np.exp(exponential_term)
+    )
+
+# MC sampling
+rng = np.random.default_rng(seed=42)
+
+N = 3 * 10**4
+
+# z0 = (q0, p0)
+z0 = np.array([2.0, 1.0])
+
+# Covariance corresponding exactly to the Gaussian Wigner density
+covariance = (
+    epsilon / 2.0
+) * np.linalg.inv(D2)
+
+samples = rng.multivariate_normal(
+    mean=z0,
+    cov=covariance,
+    size=N
+)
+
+q_samples = samples[:, 0]
+p_samples = samples[:, 1]
+
+
+# observables
+def position_observable(q, p=None):
+    return q
+
+
+def momentum_observable(q, p):
+    if p is None:
+        raise ValueError(
+            "The momentum observable requires a flow that returns momentum."
+        )
+
+    return p
+
+
+def kinetic_energy_observable(q, p):
+    if p is None:
+        raise ValueError(
+            "Kinetic energy requires a flow that returns momentum."
+        )
+
+    return 0.5 * p**2
+
+
+def potential_energy_observable(q, p=None):
+    # V(q) = 1 - cos(q)
+    return 1.0 - np.cos(q)
+
+
+def total_energy_observable(q, p):
+    if p is None:
+        raise ValueError(
+            "Total energy requires a flow that returns momentum."
+        )
+
+    return 0.5 * p**2 + 1.0 - np.cos(q)
+
+
+# --------------------------------------------------
+# Egorov approximation from a numerical flow
+# --------------------------------------------------
+
+def exp_flow(flow, observable, q0, p0, dt, n_steps):
+    """
+    1. Propagate the initial Wigner samples.
+    2. Evaluate a composed with Phi_h^t.
+    3. Approximate the Wigner integral using the sample mean.
+    """
+
+    times = []
+    expectation_values = []
+
+    # checks if using wikipedia flow or UMD flow by counting number of outputs
+    for flow_output in flow(q0=q0, p0=p0, dt=dt, n_steps=n_steps):
+        # flow_wiki returns:       (t, q_t)
+        # flow_half_steps returns: (t, q_t, p_t)
+
+        if len(flow_output) == 2:
+            t, q_t = flow_output
+            p_t = None
+
+        elif len(flow_output) == 3:
+            t, q_t, p_t = flow_output
+
+        # computes each 
+        observable_values = observable(q_t, p_t)
+
+        # Monte Carlo approximation of the phase-space integral
+        expectation_value = np.mean(observable_values)
+
+        times.append(t)
+        expectation_values.append(expectation_value)
+
+    return (
+        np.asarray(times),
+        np.asarray(expectation_values)
+    )
+
+
+# --------------------------------------------------
+# Time discretization
+# --------------------------------------------------
+
+dt = 0.01
+final_time = 20.0
+
+n_steps = int(
+    round(final_time / dt)
+)
+
+
+# --------------------------------------------------
+# Position expectation: Wikipedia form
+# --------------------------------------------------
+
+times_wiki, position_wiki = exp_flow(
+    flow=flow_wiki,
+    observable=position_observable,
+    q0=q_samples,
+    p0=p_samples,
+    dt=dt,
+    n_steps=n_steps
+)
+
+
+# --------------------------------------------------
+# Expectations from the Hamiltonian half-step form
+# --------------------------------------------------
+
+times_half_steps, position_half_steps = exp_flow(
+    flow=flow_half_steps,
+    observable=position_observable,
+    q0=q_samples,
+    p0=p_samples,
+    dt=dt,
+    n_steps=n_steps
+)
+
+
+_, momentum_half_steps = exp_flow(
+    flow=flow_half_steps,
+    observable=momentum_observable,
+    q0=q_samples,
+    p0=p_samples,
+    dt=dt,
+    n_steps=n_steps
+)
+
+
+_, kinetic_energy = exp_flow(
+    flow=flow_half_steps,
+    observable=kinetic_energy_observable,
+    q0=q_samples,
+    p0=p_samples,
+    dt=dt,
+    n_steps=n_steps
+)
+
+
+_, potential_energy = exp_flow(
+    flow=flow_half_steps,
+    observable=potential_energy_observable,
+    q0=q_samples,
+    p0=p_samples,
+    dt=dt,
+    n_steps=n_steps
+)
+
+
+_, total_energy = exp_flow(
+    flow=flow_half_steps,
+    observable=total_energy_observable,
+    q0=q_samples,
+    p0=p_samples,
+    dt=dt,
+    n_steps=n_steps
+)
+
+
+# --------------------------------------------------
+# Visualizations
+# --------------------------------------------------
+
+# Position expectation
+fig, ax = plt.subplots(figsize=(6.0, 4.0))
+
+ax.plot(
+    times_wiki,
+    position_wiki,
+    linewidth=1.3,
+    label="Position-only form"
+)
+
+ax.plot(
+    times_half_steps,
+    position_half_steps,
+    linestyle="--",
+    linewidth=1.3,
+    label="Half-step form"
+)
+
+ax.set_xlabel("time")
+ax.set_ylabel(r"position expectation $\langle q\rangle$")
+ax.set_xlim(0.0, final_time)
+
+ax.legend(frameon=False)
+
+fig.tight_layout()
+
+fig.savefig(
+    "position_expectation.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+
+# Momentum expectation
+fig, ax = plt.subplots(figsize=(6.0, 4.0))
+
+ax.plot(
+    times_half_steps,
+    momentum_half_steps,
+    linewidth=1.3
+)
+
+ax.set_xlabel("time")
+ax.set_ylabel(r"momentum expectation $\langle p\rangle$")
+ax.set_xlim(0.0, final_time)
+
+fig.tight_layout()
+
+fig.savefig(
+    "momentum_expectation.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+
+# Energy expectations
+fig, ax = plt.subplots(figsize=(6.0, 4.0))
+
+ax.plot(
+    times_half_steps,
+    kinetic_energy,
+    linewidth=1.3,
+    label="kinetic"
+)
+
+ax.plot(
+    times_half_steps,
+    potential_energy,
+    linewidth=1.3,
+    label="potential"
+)
+
+ax.plot(
+    times_half_steps,
+    total_energy,
+    linewidth=1.3,
+    label="total"
+)
+
+ax.set_xlabel("time")
+ax.set_ylabel("energy expectation")
+ax.set_xlim(0.0, final_time)
+
+ax.legend(frameon=False)
+
+fig.tight_layout()
+
+fig.savefig(
+    "energy_expectations.png",
+    dpi=300,
+    bbox_inches="tight"
+)
+
+plt.show()
