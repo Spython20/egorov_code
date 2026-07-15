@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from wikipedia_flow import flow_wiki
 from umd_flow import flow_half_steps
 
-epsilon = 0.001
+epsilon = 0.1
 d = 1
 d1 = 2.0
 
@@ -46,7 +46,7 @@ def wigner(q, p, q0, p0):
 # MC sampling
 rng = np.random.default_rng(seed=42)
 
-N = 3 * 10**4
+N = 3 * 10**6
 
 # z0 = (q0, p0)
 z0 = np.array([2.0, 1.0])
@@ -72,20 +72,10 @@ def position_observable(q, p=None):
 
 
 def momentum_observable(q, p):
-    if p is None:
-        raise ValueError(
-            "The momentum observable requires a flow that returns momentum."
-        )
-
     return p
 
 
 def kinetic_energy_observable(q, p):
-    if p is None:
-        raise ValueError(
-            "Kinetic energy requires a flow that returns momentum."
-        )
-
     return 0.5 * p**2
 
 
@@ -95,18 +85,10 @@ def potential_energy_observable(q, p=None):
 
 
 def total_energy_observable(q, p):
-    if p is None:
-        raise ValueError(
-            "Total energy requires a flow that returns momentum."
-        )
-
     return 0.5 * p**2 + 1.0 - np.cos(q)
 
 
-# --------------------------------------------------
-# Egorov approximation from a numerical flow
-# --------------------------------------------------
-
+#expecttion values for an observable and flow
 def exp_flow(flow, observable, q0, p0, dt, n_steps):
     """
     1. Propagate the initial Wigner samples.
@@ -155,11 +137,7 @@ n_steps = int(
     round(final_time / dt)
 )
 
-
-# --------------------------------------------------
-# Position expectation: Wikipedia form
-# --------------------------------------------------
-
+# wikipedia position
 times_wiki, position_wiki = exp_flow(
     flow=flow_wiki,
     observable=position_observable,
@@ -169,11 +147,7 @@ times_wiki, position_wiki = exp_flow(
     n_steps=n_steps
 )
 
-
-# --------------------------------------------------
-# Expectations from the Hamiltonian half-step form
-# --------------------------------------------------
-
+# paper position
 times_half_steps, position_half_steps = exp_flow(
     flow=flow_half_steps,
     observable=position_observable,
