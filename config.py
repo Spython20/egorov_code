@@ -19,5 +19,5 @@ D2 = s.linalg.block_diag(D1, np.reciprocal(D1))
 # how many H_alpha(z) we want
 basis_size = 5
 
-number_of_trials = 100
-target_time = 5.0          # change to 6.0 when needed
+number_of_trials = 20
+target_time = 5.0
