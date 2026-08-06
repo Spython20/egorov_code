@@ -14,7 +14,20 @@ def MC_sample(sample_size,rng):
     )
     return samples[:, 0], samples[:, 1]
 
-def exp_flow(observable, q0, p0, dt, n_steps):
+# computes observables without computing expectation value
+def compute_observable(observable, q0, p0, dt, n_steps):
+    times = []
+    observable_values_stored = []
+    for t, q_t, p_t in flow_vel_verlet(q0=q0, p0=p0, dt=dt, n_steps=n_steps): # loops for each time step
+        observable_values = observable(q_t, p_t) # composes points with observable
+        times.append(t)
+
+        observable_values_stored.append(observable_values.copy())
+
+    return (np.asarray(times), np.asarray(observable_values_stored))
+
+
+def compute_expectation(observable, q0, p0, dt, n_steps):
     times = []
     expectation_values = []
     observable_values_stored = []
@@ -29,6 +42,6 @@ def exp_flow(observable, q0, p0, dt, n_steps):
         q_stored.append(q_t.copy())
         p_stored.append(p_t.copy())
 
-        print("computed " + str(observable.__name__) + " at time " + str(t))    
+       # print("computed " + str(observable.__name__) + " at time " + str(t))    
     
-    return (np.asarray(times),np.asarray(expectation_values),np.asarray(observable_values_stored), np.asarray(q_stored), np.asarray(p_stored))
+    return (np.asarray(times), np.asarray(expectation_values), np.asarray(observable_values_stored), np.asarray(q_stored), np.asarray(p_stored))
