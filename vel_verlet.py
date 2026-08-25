@@ -1,8 +1,11 @@
 import numpy as np
+from config import *
 
-# V(q) = 1 - cos(q)
 def grad_V(q):
-    return np.sin(q)
+    q1 = q[:, 0]
+    q2 = q[:, 1]
+
+    return np.column_stack((q1 + 2 * lamb * q1 * q2, q2 + lamb * (q1**2 - q2**2)))
 
 # takes in array of positions and momentums of each sampled point
 def flow_vel_verlet(q0, p0, dt, n_steps):
