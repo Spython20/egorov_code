@@ -1,122 +1,198 @@
-import matplotlib.pyplot as plt
 import numpy as np
+import matplotlib.pyplot as plt
+from pathlib import Path
+from matplotlib.colors import Normalize
 from config import *
-from schrodinger_solver import times, position_qm, momentum_qm
 from egorov import *
 from chorin import *
-from pathlib import Path
-import matplotlib.pyplot as plt
 
+print("starting schrodinger solver")
+from schrodinger_solver import times, position1_qm, position2_qm, momentum1_qm, momentum2_qm
+print("finished schrodinger solver")
+
+# output directory
 output_directory = Path.cwd() / "phase_space_plots"
 output_directory.mkdir(exist_ok=True)
 
-# observables
-def position_observable(q, p=None):
+def position_observable(q):
     return q
 
-def momentum_observable(q, p):
+def momentum_observable(p):
     return p
 
-def kinetic_energy_observable(q, p):
-    return 0.5 * p**2
+def kinetic_energy_observable(p1, p2):
+    return 0.5 * (p1**2 + p2**2)
 
-def potential_energy_observable(q, p=None):
-    return 1.0 - np.cos(q)
+def potential_energy_observable(q1, q2):
+    return 0.5 * (q1**2 + q2**2) + lamb * (q1**2 * q2 - (1.0 / 3.0) * q2**3)
 
-def total_energy_observable(q, p):
-    return 0.5 * p**2 + 1.0 - np.cos(q)
+def total_energy_observable(q1, q2, p1, p2):
+    return kinetic_energy_observable(p1, p2) + potential_energy_observable(q1, q2)
 
-# Schrödinger point at target time
-print("starting schrodinger solver")
 qm_target_index = int(np.argmin(np.abs(times - target_time)))
-schrodinger_q = position_qm[qm_target_index]
-schrodinger_p = momentum_qm[qm_target_index]
-print("finished schrodinger solver")
 
-egorov_q_trials = []
-egorov_p_trials = []
-chorin_q_trials = []
-chorin_p_trials = []
+schrodinger_q1 = position1_qm[qm_target_index]
+schrodinger_q2 = position2_qm[qm_target_index]
+schrodinger_p1 = momentum1_qm[qm_target_index]
+schrodinger_p2 = momentum2_qm[qm_target_index]
 
-trial_num = 1
+schrodinger_vector = np.array([schrodinger_q1, schrodinger_q2, schrodinger_p1, schrodinger_p2])
+
+egorov_q1_trials = []
+egorov_q2_trials = []
+egorov_p1_trials = []
+egorov_p2_trials = []
+
+chorin_q1_trials = []
+chorin_q2_trials = []
+chorin_p1_trials = []
+chorin_p2_trials = []
+
 for trial in range(number_of_trials):
+    trial_num = trial + 1
 
     print("begin trial #" + str(trial_num))
-    # Pilot samples for Chorin coefficients
+
+    # initial monte carlo sampling
     initial_rng = np.random.default_rng(1000 + 2 * trial)
     q_initial, p_initial = MC_sample(N, initial_rng)
 
-    # computes observables for chorin
-    print("computing q observable #" + str(trial_num))
-    _, initial_position_values = compute_observable(position_observable, q_initial, p_initial, dt, n_steps)
-    print("computing p observable #" + str(trial_num))
-    _, initial_momentum_values = compute_observable(momentum_observable,q_initial, p_initial, dt, n_steps)
-    print("computing initial chorin q #" + str(trial_num))
-    position_coefficients = chorin_step_one(initial_position_values, q_initial, p_initial)
-    print("computing initial chorin p #" + str(trial_num))
-    momentum_coefficients = chorin_step_one(initial_momentum_values, q_initial, p_initial)
+    print("computing initial q1 coefficients #" + str(trial_num))
+    _, initial_q1_values = compute_observable(position_1_observable, q_initial, p_initial, dt, n_steps)
+    q1_coefficients = chorin_step_one(initial_q1_values, q_initial, p_initial)
+    del initial_q1_values
+
+    print("computing initial q2 coefficients #" + str(trial_num))
+    _, initial_q2_values = compute_observable(position_2_observable, q_initial, p_initial, dt, n_steps)
+    q2_coefficients = chorin_step_one(initial_q2_values, q_initial, p_initial)
+    del initial_q2_values
+
+    print("computing initial p1 coefficients #" + str(trial_num))
+    _, initial_p1_values = compute_observable(momentum_1_observable, q_initial, p_initial, dt, n_steps)
+    p1_coefficients = chorin_step_one(initial_p1_values, q_initial, p_initial)
+    del initial_p1_values
+
+    print("computing initial p2 coefficients #" + str(trial_num))
+    _, initial_p2_values = compute_observable(momentum_2_observable, q_initial, p_initial, dt, n_steps)
+    p2_coefficients = chorin_step_one(initial_p2_values, q_initial, p_initial)
+    del initial_p2_values
 
     # second independent sampling
     second_rng = np.random.default_rng(1001 + 2 * trial)
     q_second, p_second = MC_sample(N, second_rng)
 
-    print("computing q expectation values #" + str(trial_num))
-    second_times, egorov_position, second_position_values,_,_ = compute_expectation(position_observable, q_second, p_second, dt, n_steps)
-    print("computing p expectation values #" + str(trial_num))
-    _, egorov_momentum, second_momentum_values, _, _,= compute_expectation(momentum_observable, q_second, p_second, dt, n_steps)
+    print("computing q1 estimates #" + str(trial_num))
+    second_times, second_q1_values = compute_observable(position_1_observable, q_second, p_second, dt, n_steps)
+    egorov_q1 = np.mean(second_q1_values, axis=1)
+    chorin_q1 = chorin_step_two(second_q1_values, q1_coefficients, q_second, p_second)
+    del second_q1_values
 
-    print("computing second chorin q #" + str(trial_num))
-    chorin_position = chorin_step_two(second_position_values, position_coefficients, q_second, p_second)
-    print("computing second chorin p #" + str(trial_num))
-    chorin_momentum = chorin_step_two(second_momentum_values, momentum_coefficients, q_second, p_second)
+    print("computing q2 estimates #" + str(trial_num))
+    _, second_q2_values = compute_observable(position_2_observable, q_second, p_second, dt, n_steps)
+    egorov_q2 = np.mean(second_q2_values, axis=1)
+    chorin_q2 = chorin_step_two(second_q2_values, q2_coefficients, q_second, p_second)
+    del second_q2_values
 
-    # fix machine precision issues
+    # p1
+    print("computing p1 estimates #" + str(trial_num))
+    _, second_p1_values = compute_observable(momentum_1_observable, q_second, p_second, dt, n_steps)
+    egorov_p1 = np.mean(second_p1_values, axis=1)
+    chorin_p1 = chorin_step_two(second_p1_values, p1_coefficients, q_second, p_second)
+    del second_p1_values
+
+    # p2
+    print("computing p2 estimates #" + str(trial_num))
+    _, second_p2_values = compute_observable(momentum_2_observable, q_second, p_second, dt, n_steps)
+    egorov_p2 = np.mean(second_p2_values, axis=1)
+    chorin_p2 = chorin_step_two(second_p2_values, p2_coefficients, q_second, p_second)
+    del second_p2_values
+
+    # target time index
     target_index = int(np.argmin(np.abs(second_times - target_time)))
 
-    egorov_q_trials.append(egorov_position[target_index])
-    egorov_p_trials.append(egorov_momentum[target_index])
+    # store 4D phase-space point for this trial
+    egorov_q1_trials.append(egorov_q1[target_index])
+    egorov_q2_trials.append(egorov_q2[target_index])
+    egorov_p1_trials.append(egorov_p1[target_index])
+    egorov_p2_trials.append(egorov_p2[target_index])
 
-    chorin_q_trials.append(chorin_position[target_index])
-    chorin_p_trials.append(chorin_momentum[target_index])
+    chorin_q1_trials.append(chorin_q1[target_index])
+    chorin_q2_trials.append(chorin_q2[target_index])
+    chorin_p1_trials.append(chorin_p1[target_index])
+    chorin_p2_trials.append(chorin_p2[target_index])
 
-    trial_num = trial_num + 1
 
-# q variance
-egorov_q_variance = np.var(egorov_q_trials, ddof=1)
-chorin_q_variance = np.var(chorin_q_trials, ddof=1)
-egorov_q_mse = np.mean((np.asarray(egorov_q_trials) - schrodinger_q) ** 2)
-chorin_q_mse = np.mean((np.asarray(chorin_q_trials) - schrodinger_q) ** 2)
-print("Egorov q variance:", egorov_q_variance)
-print("Chorin q variance:", chorin_q_variance)
-print("Variance ratio:", chorin_q_variance / egorov_q_variance) # < 1 means variance reduction
-print("Egorov q Mean Squared Error: ", egorov_q_mse)
-print("Chorin q Mean Squared Error: ", chorin_q_mse)
-# p variance
-egorov_p_variance = np.var(egorov_p_trials, ddof=1)
-chorin_p_variance = np.var(chorin_p_trials, ddof=1)
-egorov_p_mse = np.mean((np.asarray(egorov_p_trials) - schrodinger_p) ** 2)
-chorin_p_mse = np.mean((np.asarray(chorin_p_trials) - schrodinger_p) ** 2)
-print("Egorov p variance:", egorov_p_variance)
-print("Chorin p variance:", chorin_p_variance)
-print("Variance ratio:", chorin_p_variance / egorov_p_variance) # < 1 means variance reduction
-print("Egorov p Mean Squared Error: ", egorov_p_mse)
-print("Chorin p Mean Squared Error: ", chorin_p_mse)
+# collect trials into R^4, (q1, q2, p1, p2)
+egorov_trials = np.column_stack((egorov_q1_trials, egorov_q2_trials, egorov_p1_trials, egorov_p2_trials))
+chorin_trials = np.column_stack((chorin_q1_trials, chorin_q2_trials, chorin_p1_trials, chorin_p2_trials))
+
+# covariance 
+egorov_covariance = np.cov(egorov_trials, rowvar=False, ddof=1)
+chorin_covariance = np.cov(chorin_trials, rowvar=False, ddof=1)
+
+# variance in each phase-space coordinate
+egorov_coordinate_variances = np.diag(egorov_covariance)
+chorin_coordinate_variances = np.diag(chorin_covariance)
+coordinate_names = ["q1", "q2", "p1", "p2"]
+
+for i, name in enumerate(coordinate_names):
+    print(name)
+    print("    Egorov variance:", egorov_coordinate_variances[i])
+    print("    Chorin variance:", chorin_coordinate_variances[i])
+    print("    Variance ratio:", chorin_coordinate_variances[i] / egorov_coordinate_variances[i])
+
+# mean square error
+egorov_coordinate_mse = np.mean((egorov_trials - schrodinger_vector)**2, axis=0)
+chorin_coordinate_mse = np.mean((chorin_trials - schrodinger_vector)**2, axis=0)
+
+for i, name in enumerate(coordinate_names):
+    print(name)
+    print("    Egorov MSE:", egorov_coordinate_mse[i])
+    print("    Chorin MSE:", chorin_coordinate_mse[i])
 
 plt.figure(figsize=(8, 6))
 
-# Schrödinger point
-plt.scatter([schrodinger_q], [schrodinger_p],color="black",marker="*",s=220,label=f"Schrödinger at t={target_time}",zorder=5)
-plt.scatter(egorov_q_trials,egorov_p_trials,color="blue",marker="o",s=60,alpha=0.75,label="Base Egorov trials")
-plt.scatter(chorin_q_trials,chorin_p_trials,color="red",marker="s",s=60,alpha=0.75,label="Chorin trials")
+# Schrödinger reference
+plt.scatter([schrodinger_q1], [schrodinger_p1], color="black", marker="*", s=220, label=f"Schrödinger at t={target_time}", zorder=5)
 
-plt.xlabel(r"$\langle q \rangle$")
-plt.ylabel(r"$\langle p \rangle$")
-plt.title(f"Phase-Space Points at t={target_time}")
+# base Egorov trials
+plt.scatter(egorov_q1_trials, egorov_p1_trials, color="blue", marker="o", s=60, alpha=0.75, label="Base Egorov trials")
+
+# Chorin variance-reduced trials
+plt.scatter(chorin_q1_trials, chorin_p1_trials, color="red", marker="s", s=60, alpha=0.75, label="Chorin trials")
+
+plt.xlabel(r"$\langle q_1 \rangle$")
+plt.ylabel(r"$\langle p_1 \rangle$")
+plt.title(f"Phase Space $(q_1,p_1)$ at t={target_time}")
 plt.legend()
 plt.grid(True)
 plt.tight_layout()
 
-save_path = output_directory / f"phase_space_points_t_{target_time}.png"
+save_path = output_directory / f"phase_space_q1_p1_t_{target_time}.png"
+plt.savefig(save_path, dpi=200, bbox_inches="tight")
+plt.show()
+
+print(f"Saved plot to: {save_path}")
+
+plt.figure(figsize=(8, 6))
+
+# Schrödinger reference
+plt.scatter([schrodinger_q2], [schrodinger_p2], color="black", marker="*", s=220, label=f"Schrödinger at t={target_time}", zorder=5)
+
+# base Egorov trials
+plt.scatter(egorov_q2_trials, egorov_p2_trials, color="blue", marker="o", s=60, alpha=0.75, label="Base Egorov trials")
+
+# Chorin variance-reduced trials
+plt.scatter(chorin_q2_trials, chorin_p2_trials, color="red", marker="s", s=60, alpha=0.75, label="Chorin trials")
+
+plt.xlabel(r"$\langle q_2 \rangle$")
+plt.ylabel(r"$\langle p_2 \rangle$")
+plt.title(f"Phase Space $(q_2,p_2)$ at t={target_time}")
+plt.legend()
+plt.grid(True)
+plt.tight_layout()
+
+save_path = output_directory / f"phase_space_q2_p2_t_{target_time}.png"
 plt.savefig(save_path, dpi=200, bbox_inches="tight")
 plt.show()
 
