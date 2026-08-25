@@ -14,20 +14,28 @@ print("finished schrodinger solver")
 output_directory = Path.cwd() / "phase_space_plots"
 output_directory.mkdir(exist_ok=True)
 
-def position_observable(q):
-    return q
+def position_1_observable(q, p=None):
+    return q[:, 0]
 
-def momentum_observable(p):
-    return p
+def position_2_observable(q, p=None):
+    return q[:, 1]
 
-def kinetic_energy_observable(p1, p2):
-    return 0.5 * (p1**2 + p2**2)
+def momentum_1_observable(q, p):
+    return p[:, 0]
 
-def potential_energy_observable(q1, q2):
+def momentum_2_observable(q, p):
+    return p[:, 1]
+
+def kinetic_energy_observable(q, p):
+    return 0.5 * (p[:, 0]**2 + p[:, 1]**2)
+
+def potential_energy_observable(q, p=None):
+    q1 = q[:, 0]
+    q2 = q[:, 1]
     return 0.5 * (q1**2 + q2**2) + lamb * (q1**2 * q2 - (1.0 / 3.0) * q2**3)
 
-def total_energy_observable(q1, q2, p1, p2):
-    return kinetic_energy_observable(p1, p2) + potential_energy_observable(q1, q2)
+def total_energy_observable(q, p):
+    return kinetic_energy_observable(q, p) + potential_energy_observable(q, p)
 
 qm_target_index = int(np.argmin(np.abs(times - target_time)))
 
