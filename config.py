@@ -3,21 +3,27 @@ import scipy as s
 
 """good matching parameters, d = 1, epsilon = 0.1, q0 = 2.0, p0 = 1.0, final_time = 10.0"""
 epsilon = 0.1
-d = 1
-d1 = 0.1
-q0 = 2.0
-p0 = 1.0
-N = 100000 # number of samples
-dt = 0.01
-final_time = 5.0
-n_steps = int(round(final_time / dt))
+d = 2 # dimension of system
 
 # matrix for initial gaussian wavepacket
-D1 = np.diag([d1])
-D2 = s.linalg.block_diag(D1, np.reciprocal(D1))
+d1 = 1.0
+d2 = 1.0
+D1 = np.diag([d1,d2])
+D2 = s.linalg.block_diag(D1, np.linalg.inv(D1))
 
-# how many H_alpha(z) we want
-basis_size = 5
+q10 = 0.1
+q20 = 0.0
+p10 = 0.3
+p20 = 0.0
+lamb = 1 # lambda for Henon-Heiles system
+
+N = 10000 # number of samples
+dt = 0.01
+final_time = 1.0
+target_time = 1.0
+n_steps = int(round(final_time / dt))
+
+# how many H_alpha(z) we want, choose indicies for the nth hagedorn wavepacket
+basis_indices = [(0, 0), (1, 0), (0, 1), (2, 0),(1, 1),(0, 2)]
 
 number_of_trials = 20
-target_time = 5.0
