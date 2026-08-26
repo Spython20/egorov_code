@@ -8,12 +8,11 @@ covariance = (epsilon / 2.0) * np.linalg.inv(D2) # Covariance corresponding exac
 
 def MC_sample(sample_size,rng):
     samples = rng.multivariate_normal(mean=z0, cov=covariance, size=sample_size)
-    q1_samples = samples[:,0] # take all rows, take column 0 since our mean z0 is q1, q2, p1, p2
-    q2_samples = samples[:,1]
-    p1_samples = samples[:,2]
-    p2_samples = samples[:,3]
+    q_samples = np.array([samples[:,0],samples[:,1]]) # take all rows, take column 0 since our mean z0 is q1, q2, p1, p2
+    p_samples = np.array([samples[:,2],samples[:,3]])
 
-    return q1_samples, q2_samples, p1_samples, p2_samples
+    print(q_samples)
+    return q_samples, p_samples
 
 # computes observables without computing expectation value
 def compute_observable(observable, q0, p0, dt, n_steps):
@@ -26,7 +25,6 @@ def compute_observable(observable, q0, p0, dt, n_steps):
         observable_values_stored.append(observable_values.copy())
 
     return (np.asarray(times), np.asarray(observable_values_stored))
-
 
 def compute_expectation(observable, q0, p0, dt, n_steps):
     times = []
