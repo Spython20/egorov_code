@@ -3,23 +3,23 @@ from config import *
 
 times = np.linspace(0.0, final_time, n_steps + 1)
 
-# spatial grid
+# spatial discretization
 grid_size = 8192
-x_min = -30.0
-x_max = 30.0
+L = 60.0
+dx = L / grid_size
 
-x = np.linspace(x_min, x_max, grid_size, endpoint=False)
-dx = x[1] - x[0]
+x = -L / 2.0 + np.arange(grid_size) * dx
 
-# Fourier grid
-k = 2.0 * np.pi * np.fft.fftfreq(grid_size, d=dx)
-p_grid = epsilon * k
+# Fourier discretization from LibreTexts
+dk = 2.0 * np.pi / L
+k = -np.pi * grid_size / L + np.arange(grid_size) * dk
 
+# (-1)^m factor appearing in the centred DFT formula
+alternating_sign = (-1.0) ** np.arange(grid_size)
 
 # potential
-def V(x):
+def potential(x):
     return 1.0 - np.cos(x)
-
 
 # initial Gaussian wavepacket
 psi = (d1 / (np.pi * epsilon)) ** 0.25 * np.exp(
@@ -27,40 +27,71 @@ psi = (d1 / (np.pi * epsilon)) ** 0.25 * np.exp(
     + 1j * p0 * (x - q0) / epsilon
 )
 
-# discrete normalization
+# numerical normalization
 psi = psi / np.sqrt(np.sum(np.abs(psi) ** 2) * dx)
 
+# kinetic half-step multiplier
+kinetic_multiplier = np.exp(-1j * epsilon * dt * k**2 / 4.0)
 
-# split-operator propagators
-potential_propagator = np.exp(-1j * V(x) * dt / (2.0 * epsilon))
-kinetic_propagator = np.exp(-1j * (p_grid ** 2 / 2.0) * dt / epsilon)
+# potential full-step multiplier
+potential_multiplier = np.exp(-1j * dt * potential(x) / epsilon)
 
 
-# expectation values
+# kinetic half-step
+def kinetic_step(psi):
+
+    psi_fourier = np.fft.fft(alternating_sign * psi)
+
+    psi_fourier = kinetic_multiplier * psi_fourier
+
+    return alternating_sign * np.fft.ifft(psi_fourier)
+
+
+# potential full-step
+def potential_step(psi):
+
+    return potential_multiplier * psi
+
+
+# position expectation
 def position_expectation(psi):
+
     return np.real(np.sum(np.conj(psi) * x * psi) * dx)
 
 
+# momentum operator
 def momentum_expectation(psi):
-    psi_fourier = np.fft.fft(psi)
-    derivative = np.fft.ifft(1j * k * psi_fourier)
-    p_psi = -1j * epsilon * derivative
+
+    psi_fourier = np.fft.fft(alternating_sign * psi)
+
+    p_psi_fourier = epsilon * k * psi_fourier
+
+    p_psi = alternating_sign * np.fft.ifft(p_psi_fourier)
 
     return np.real(np.sum(np.conj(psi) * p_psi) * dx)
 
 
+# kinetic energy
 def kinetic_expectation(psi):
-    psi_fourier = np.fft.fft(psi)
-    kinetic_psi = np.fft.ifft(0.5 * p_grid ** 2 * psi_fourier)
+
+    psi_fourier = np.fft.fft(alternating_sign * psi)
+
+    kinetic_psi_fourier = 0.5 * epsilon**2 * k**2 * psi_fourier
+
+    kinetic_psi = alternating_sign * np.fft.ifft(kinetic_psi_fourier)
 
     return np.real(np.sum(np.conj(psi) * kinetic_psi) * dx)
 
 
+# potential energy
 def potential_expectation(psi):
-    return np.real(np.sum(np.abs(psi) ** 2 * V(x)) * dx)
+
+    return np.real(np.sum(np.conj(psi) * potential(x) * psi) * dx)
 
 
+# total energy
 def total_expectation(psi):
+
     return kinetic_expectation(psi) + potential_expectation(psi)
 
 
@@ -71,7 +102,6 @@ kinetic_qm = np.zeros(n_steps + 1)
 potential_qm = np.zeros(n_steps + 1)
 total_qm = np.zeros(n_steps + 1)
 
-
 # initial expectation values
 position_qm[0] = position_expectation(psi)
 momentum_qm[0] = momentum_expectation(psi)
@@ -79,27 +109,17 @@ kinetic_qm[0] = kinetic_expectation(psi)
 potential_qm[0] = potential_expectation(psi)
 total_qm[0] = total_expectation(psi)
 
-
-print("starting grid Schrödinger solver")
-
+# split-step Fourier evolution
 for n in range(n_steps):
 
-    # half potential step
-    psi = potential_propagator * psi
+    psi = kinetic_step(psi)
 
-    # full kinetic step in Fourier space
-    psi_fourier = np.fft.fft(psi)
-    psi_fourier = kinetic_propagator * psi_fourier
-    psi = np.fft.ifft(psi_fourier)
+    psi = potential_step(psi)
 
-    # half potential step
-    psi = potential_propagator * psi
+    psi = kinetic_step(psi)
 
-    # expectation values
     position_qm[n + 1] = position_expectation(psi)
     momentum_qm[n + 1] = momentum_expectation(psi)
     kinetic_qm[n + 1] = kinetic_expectation(psi)
     potential_qm[n + 1] = potential_expectation(psi)
     total_qm[n + 1] = total_expectation(psi)
-
-print("finished grid Schrödinger solver")
