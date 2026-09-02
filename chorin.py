@@ -14,9 +14,8 @@ def H(k,q,p):
     value = 0
     i = k
     while i >= 0:
-        value = value + (-1.0) ** np.abs(k) * laguerre_coefficient(i, k) * ((1 / epsilon) * (z_origin_squared(q,p)))**i
-        #print("computed H coefficient " + str(i))
-        i = i - 1    
+        value = value + (-1.0) ** np.abs(k) * laguerre_coefficient(i, k) * ((1 / (2 * epsilon)) * (z_origin_squared(q,p)))**i
+        i = i - 1
     return value
 
 def chorin_step_one(observable_flow_composed, q_samples, p_samples):
