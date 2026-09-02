@@ -6,10 +6,19 @@ rng = np.random.default_rng(seed=42) # MC sampling seed
 z0 = np.array([q0, p0]) # z0 = (q0, p0)
 covariance = (epsilon / 2.0) * np.linalg.inv(D2) # Covariance corresponding exactly to the Gaussian Wigner density
 
+scaled_covariance = epsilon * np.linalg.inv(D2)
 def MC_sample(sample_size,rng):
     samples = rng.multivariate_normal(
         mean=z0,
         cov=covariance,
+        size=sample_size,
+    )
+    return samples[:, 0], samples[:, 1]
+
+def scaled_MC_sample(sample_size, rng):
+    samples = rng.multivariate_normal(
+        mean=z0,
+        cov=scaled_covariance,
         size=sample_size,
     )
     return samples[:, 0], samples[:, 1]
