@@ -1,2 +1,1 @@
-UMD flow (page 10): https://www.math.umd.edu/~mariakc/AMSC661/LectureNotes/SymplecticMethods.pdf
-wikipedia flow: https://en.wikipedia.org/wiki/Verlet_integration
+Henon-Heiles used for 2D case.
