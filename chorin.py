@@ -18,33 +18,31 @@ def laguerre(k, x):
     i = k
     while i >= 0:
         value += laguerre_coefficient(i, k) * x**i
-        #print("computed H coefficient " + str(i))
         i -= 1
     return value
 
-def H(k, q, p):
+def H(k, q1,q2,p1, p2):
     k1, k2 = k
-    return (-1.0) ** (k1 + k2) * laguerre(k1, z_1(q[:, 0], p[:, 0]) / epsilon) * laguerre(k2, z_2(q[:, 1], p[:, 1]) / epsilon)
+    return (-1.0) ** (k1 + k2) * laguerre(k1, z_1(q1, p1) / epsilon) * laguerre(k2, z_2(q2, p2) / epsilon)
 
-def chorin_step_one(observable_flow_composed, q_samples, p_samples):
+def chorin_step_one(observable_flow_composed, q1_samples,q2_samples, p1_samples,p2_samples):
     c = []
     for k in basis_indices:
-        c.append((1 / N) * np.sum(observable_flow_composed * H(k, q_samples, p_samples),axis = 1))
-        #print("computed chorin coefficient " + str(i))
+        c.append((1 / N) * np.sum(observable_flow_composed * H(k, q1_samples,q2_samples, p1_samples,p2_samples),axis = 1))
 
     return c
 
-def chorin_step_two(observable_flow_composed, c_alpha, q_samples, p_samples):
-    c_alpha = np.asarray(c_alpha)
-    correction = np.zeros_like(observable_flow_composed, dtype=float) # empty correction array
+# MAKE SURE TO USE NEW SAMPLE
+def chorin_step_two(observable_flow_composed, c_alpha, q1_samples,q2_samples, p1_samples,p2_samples):
+    # sum over cn* Hn, correction summation
+    correction = np.zeros_like(observable_flow_composed)
 
-    # sum over cn * Hn
-    for i in range(1, c_alpha.shape[0]):
+    for i in range(len(c_alpha)):
         k = basis_indices[i]
-        correction += c_alpha[i][:, None] * H(k, q_samples, p_samples)[None, :]
-        #print("computed corrected coefficient " + str(i))
+        H_values = H(k,q1_samples,q2_samples,p1_samples,p2_samples)
+
+        for n in range(len(observable_flow_composed)):
+            correction[n] += c_alpha[i][n] * H_values # c_alpha[i][n] is coefficient for basis function i at time step n
 
     corrected_values = observable_flow_composed - correction
-
-    # final summation and mean computation
-    return np.mean(corrected_values, axis=1)
+    return np.mean(corrected_values, axis=1)    # final summation and mean computation
