@@ -1,7 +1,6 @@
 import numpy as np
 import scipy as s
 
-"""good matching parameters, d = 1, epsilon = 0.1, q0 = 2.0, p0 = 1.0, final_time = 10.0"""
 epsilon = 0.1
 d = 2 # dimension of system
 
@@ -24,6 +23,6 @@ target_time = 1.0
 n_steps = int(round(final_time / dt))
 
 # how many H_alpha(z) we want, choose indicies for the nth hagedorn wavepacket
-basis_indices = [(0, 0), (1, 0), (0, 1), (2, 0),(1, 1),(0, 2)]
+basis_indices = [(1, 0), (0, 1), (2, 0),(1, 1),(0, 2)]
 
 number_of_trials = 20
